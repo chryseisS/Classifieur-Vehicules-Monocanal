@@ -62,8 +62,8 @@ model = timm.create_model(
 model.stem[0] = nn.Conv2d(1, model.stem[0].out_channels, kernel_size=4, stride=2, padding=0, bias=True)
 
 # Supprimer le dernier downsampling
-if hasattr(model, 'downsample_layers'):
-    model.downsample_layers[3] = nn.Identity()
+model.stages[3].downsample = nn.Identity()
+
 
 model.to(device)
 print(next(model.parameters()).device)
