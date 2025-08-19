@@ -36,13 +36,13 @@ val_transform = transforms.Compose([
 ])
 
 train_dataset = datasets.ImageFolder(
-    r'C:\Users\Public\Python\Classifieur vehicules monocanal\dataset\train',
+    r'dataset\train',
     transform=train_transform
 )
 
 
 val_dataset = datasets.ImageFolder(
-    r'C:\Users\Public\Python\Classifieur vehicules monocanal\dataset\val',
+    r'dataset\val',
     transform=val_transform
 )
 if __name__ == "__main__":
