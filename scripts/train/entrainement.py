@@ -13,7 +13,7 @@ batch_size = 32
 num_epochs = 50
 num_classes = 2
 lr = 1e-4
-patience = 5 
+patience = 5
 device = torch.device("cuda" if torch.cuda.is_available() else  "cpu")
 
 print(device)
@@ -57,18 +57,22 @@ if __name__ == "__main__":
         num_classes=num_classes
     )
     
-    # Modifier le stem pour grayscale (1 canal)
     model.stem[0] = nn.Conv2d(1, model.stem[0].out_channels, kernel_size=4, stride=2, padding=0, bias=True)
-    
-    # Supprimer le dernier downsampling (en augmentant le nombre de canaux)
-    model.stages[3].downsample = nn.Conv2d(384, 768, kernel_size=1)
+
+    model.stages[3].downsample = nn.Sequential(
+        nn.Conv2d(384, 768, kernel_size=1),
+        nn.BatchNorm2d(768)
+    )
     
     
     model.to(device).to(memory_format=torch.channels_last)
     print(next(model.parameters()).device)
     
     criterion = nn.CrossEntropyLoss()
-    optimizer = torch.optim.AdamW(model.parameters(), lr=lr)
+    optimizer = torch.optim.AdamW([
+        {'params': model.stem.parameters(), 'lr': lr*5},
+        {'params': [p for n, p in model.named_parameters() if "stem" not in n], 'lr': lr}
+    ])
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode="max", factor=0.5, patience=2)
     
     scaler = torch.cuda.amp.GradScaler()
@@ -87,6 +91,7 @@ if __name__ == "__main__":
             inputs, targets = inputs.to(device).to(memory_format=torch.channels_last), targets.to(device)
             optimizer.zero_grad()
     
+            # --- Mixed precision ---
             with torch.cuda.amp.autocast():
                 outputs = model(inputs)
                 loss = criterion(outputs, targets)
@@ -123,11 +128,23 @@ if __name__ == "__main__":
         print(f"Epoch {epoch+1}/{num_epochs} | "
               f"Train Loss: {train_loss:.4f} Acc: {train_acc:.4f} | "
               f"Val Loss: {val_loss:.4f} Acc: {val_acc:.4f}")
-    
+        
+        
+        
+            
+        with torch.no_grad():
+            stem_norm = 0.0
+            for p in model.stem.parameters():
+                stem_norm += torch.norm(p).item()
+            
+            
+            print(f"Norme des poids du stem : {stem_norm:.4f}")
+            
+            
         if val_acc > best_val_acc:
             best_val_acc = val_acc
             epochs_no_improve = 0
-            torch.save(model.state_dict(), "models/best_convnextv2_tiny_vehicle_classifier_without_downsampling.pth")
+            torch.save(model.state_dict(), "models/best_convnextv2_tiny_vehicle_classifier_mod.pth")
             print(f"Nouveau meilleur modèle sauvegardé avec Val Acc={val_acc:.4f}")
         else:
             epochs_no_improve += 1
